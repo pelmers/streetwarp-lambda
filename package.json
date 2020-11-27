@@ -1,0 +1,32 @@
+{
+    "name": "streetwarp-func",
+    "version": "1.0.0",
+    "description": "",
+    "scripts": {
+        "watch": "webpack --config webpack.config.js --watch",
+        "build": "webpack --config webpack.config.js",
+        "release": "webpack --config webpack.config.js --mode production",
+        "update": "res/update-streetwarp.sh",
+        "format": "node_modules/.bin/prettier --ignore-path .gitignore --write '.'",
+        "deploy": "yarn build && zip -r dist/bundle.zip package.json res && cd dist && zip -r bundle.zip index.js"
+    },
+    "dependencies": {},
+    "devDependencies": {
+        "@azure/storage-blob": "^12.3.0",
+        "@types/aws-lambda": "^8.10.64",
+        "@types/mkdirp": "^1.0.1",
+        "@types/node": "^14.14.10",
+        "@types/ws": "^7.4.0",
+        "aws-sdk": "^2.799.0",
+        "mkdirp": "^1.0.4",
+        "prettier": "^2.1.2",
+        "source-map-loader": "^1.1.2",
+        "ts-loader": "^8.0.11",
+        "tslint": "^6.1.3",
+        "tslint-loader": "^3.5.4",
+        "typescript": "^4.1.2",
+        "webpack": "^5.6.0",
+        "webpack-cli": "^4.2.0",
+        "ws": "^7.4.0"
+    }
+}
