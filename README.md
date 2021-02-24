@@ -9,10 +9,12 @@ to an Azure storage blob. It's designed to be called by
 AWS Lambda's Ubuntu runtime.
 
 ### Usage
+
 To upload output to Azure, the program needs storage write credentials. Create
 a file `src/secret.ts` which exports an Azure storage credential object.
 
 Example:
+
 ```
 import { StorageSharedKeyCredential } from '@azure/storage-blob';
 
@@ -22,8 +24,10 @@ export const credential = new StorageSharedKeyCredential(account, accountKey);
 ```
 
 ### Publishing
+
 To publish changes to the Lambda program, use AWS CLI tooling. First create a
 zip, then upload to Lambda.
+
 ```
 yarn
 yarn deploy
@@ -31,8 +35,10 @@ aws lambda update-function-code --function-name streetwarp --zip-file fileb://di
 ```
 
 ### Testing
+
 Use the AWS Lambda Management Console to test this program by sending events
 with the following format:
+
 ```
 {
   "key": "xyz1234",

@@ -25,7 +25,6 @@ type RequestParams = {
 };
 
 const r = (p: string) => path.resolve(__dirname, p);
-const tempDir = os.tmpdir();
 const tmp = (p: string) => path.resolve(os.tmpdir(), p);
 
 const blobServiceClient = new BlobServiceClient(
@@ -34,8 +33,7 @@ const blobServiceClient = new BlobServiceClient(
 );
 
 export const handler: APIGatewayProxyHandler = async (
-    event,
-    context
+    event
 ): Promise<APIGatewayProxyResult> => {
     async function run(
         cmd: string,
@@ -85,7 +83,7 @@ export const handler: APIGatewayProxyHandler = async (
             stdio: 'pipe',
             env: { RUST_BACKTRACE: '1', ...process.env },
         });
-        console.log(`spawned streetwarp: ${ args.join(' ') }`);
+        console.log(`spawned streetwarp: ${args.join(' ')}`);
         const stderrMessages: string[] = [];
         proc.stderr.on('data', (data) => stderrMessages.push(data));
         const rl = readline.createInterface({ input: proc.stdout });
