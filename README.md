@@ -31,7 +31,6 @@ zip, then upload to Lambda.
 ```
 yarn
 yarn deploy
-aws lambda update-function-code --function-name streetwarp --zip-file fileb://dist/bundle.zip --publish
 ```
 
 ### Testing

@@ -8,7 +8,9 @@
         "release": "webpack --config webpack.config.js --mode production",
         "update": "res/update-streetwarp.sh",
         "format": "node_modules/.bin/prettier --ignore-path .gitignore --write '.'",
-        "deploy": "yarn build && zip -r dist/bundle.zip package.json res && cd dist && zip -r bundle.zip index.js"
+        "bundle": "yarn build && zip -r dist/bundle.zip package.json res && cd dist && zip -r bundle.zip index.js",
+        "publish": "aws lambda update-function-code --function-name streetwarp --zip-file fileb://dist/bundle.zip --publish",
+        "deploy": "yarn run bundle && yarn run publish"
     },
     "dependencies": {},
     "devDependencies": {
