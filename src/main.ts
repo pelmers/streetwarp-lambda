@@ -13,7 +13,7 @@ import {
     ProgressMessage,
     ProgressStageMessage,
 } from './messages';
-import { credential } from './secret';
+import { credential, toCDN } from './secret';
 import { APIGatewayProxyHandler, APIGatewayProxyResult } from 'aws-lambda';
 
 type RequestParams = {
@@ -184,7 +184,8 @@ export const handler: APIGatewayProxyHandler = async (
         if (args.indexOf('--dry-run') === -1) {
             await time('upload video', client.uploadFile(outputName));
             console.info(`Upload location: ${client.url}`);
-            videoResult = { url: client.url };
+            console.info(`CDN location: ${toCDN(client.url)}`);
+            videoResult = { url: toCDN(client.url) };
         }
 
         return {

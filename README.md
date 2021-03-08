@@ -12,6 +12,8 @@ AWS Lambda's Ubuntu runtime.
 
 To upload output to Azure, the program needs storage write credentials. Create
 a file `src/secret.ts` which exports an Azure storage credential object.
+It should also export 'toCDN' which turns a blob storage URL into a CDN-backed one.
+If you don't have CDN then just return the identity function.
 
 Example:
 
@@ -21,6 +23,7 @@ import { StorageSharedKeyCredential } from '@azure/storage-blob';
 const account = 'account name';
 const accountKey = 'account key';
 export const credential = new StorageSharedKeyCredential(account, accountKey);
+export const toCDN = (x) => x;
 ```
 
 ### Publishing
