@@ -30,7 +30,7 @@ zip, then upload to Lambda.
 
 ```
 yarn
-yarn deploy
+yarn run deploy
 ```
 
 ### Testing
