@@ -26,6 +26,7 @@ type RequestParams = {
 
 const r = (p: string) => path.resolve(__dirname, p);
 const tmp = (p: string) => path.resolve(os.tmpdir(), p);
+const binPath = r('res/bin');
 
 const blobServiceClient = new BlobServiceClient(
     `https://${credential.accountName}.blob.core.windows.net`,
@@ -51,9 +52,7 @@ export const handler: APIGatewayProxyHandler = async (
     }
 
     async function extractResources(): Promise<void> {
-        const binPath = r('res/bin');
-        await run('ls', ['-laht', binPath]);
-        process.env['PATH'] = `${binPath}:${process.env['PATH']}`;
+        process.env['PATH'] = `${binPath}:${path.join(binPath, 'streetwarp')}:${process.env['PATH']}`;
     }
 
     async function prepareInput(
