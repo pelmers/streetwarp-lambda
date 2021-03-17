@@ -16,6 +16,8 @@ import {
 import { credential, toCDN } from './secret';
 import { APIGatewayProxyHandler, APIGatewayProxyResult } from 'aws-lambda';
 
+// TODO rewrite in python
+
 type RequestParams = {
     key: string;
     args: string[];
@@ -157,6 +159,13 @@ export const handler: APIGatewayProxyHandler = async (
             extension,
         })}`
     );
+    // TODO test that path_optimizer actually runs!
+    try {
+        const pathOptimizerPath = path.resolve(binPath, 'streetwarp/path_optimizer/')
+        await time('testing path_optimizer', run('python3', [path.join(pathOptimizerPath, 'main.py')], pathOptimizerPath));
+    } catch (e) {
+        // ignore
+    }
     let socket: ws | undefined;
     if (callbackEndpoint) {
         socket = new ws(callbackEndpoint);
