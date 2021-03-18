@@ -95,3 +95,6 @@ local.settings.json
 res/update-streetwarp.sh
 src/secret.ts
 test/testoutput.json
+.vscode
+.requirements.zip
+.serverless

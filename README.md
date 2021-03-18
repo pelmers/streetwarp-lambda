@@ -6,7 +6,11 @@ to an Azure storage blob. It's designed to be called by
 [streetwarp-web](https://github.com/pelmers/streetwarp-web).
 
 `res/bin` contains static builds of streetwarp and ffmpeg which can execute on
-AWS Lambda's Ubuntu runtime.
+AWS Lambda's Node v12 runtime.
+
+### Dev Setup
+1. `npm install -g serverless`
+2. `serverless plugin install -n serverless-python-requirements`
 
 ### Usage
 

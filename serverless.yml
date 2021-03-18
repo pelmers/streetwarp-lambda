@@ -1,0 +1,28 @@
+service: streetwarp-lambda
+
+# Serverless version
+frameworkVersion: '2'
+
+provider:
+  name: aws
+  runtime: python3.8
+  lambdaHashingVersion: 20201221
+  region: us-west-2
+
+package:
+  include:
+    - res/**
+
+functions:
+  streetwarp:
+    handler: handler.main
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: true
+    usePoetry: true
+    zip: true
+    slim: true
