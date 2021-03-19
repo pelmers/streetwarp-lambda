@@ -25,6 +25,11 @@ blob_service_client = (
     if blob_connection_env in os.environ
     else None
 )
+ld_path = os.path.join(sw_path, "path_optimizer", "dist", "lib64")
+if 'LD_LIBRARY_PATH' in os.environ:
+    os.environ['LD_LIBRARY_PATH'] += os.path.pathsep + ld_path
+else:
+    os.environ['LD_LIBRARY_PATH'] = ld_path
 
 
 # Define decorator that lets us @timer('msg') on functions
@@ -88,7 +93,6 @@ async def _read_stream(stream, callback):
 async def run(command, args, out_callback, err_callback):
     process = await create_subprocess_exec(
         command, *args,
-        env={},
         stdout=PIPE, stderr=PIPE, limit=1000 * 1000 * 10  # 10 MB
     )
 
