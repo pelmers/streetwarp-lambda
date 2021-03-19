@@ -1,0 +1,19 @@
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Timeout: 15
+
+Resources:
+  StreetwarpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .serverless/streetwarp-lambda.zip
+      Handler: handler.main
+      Runtime: python3.8
+      Events:
+        Streetwarp:
+          Type: HttpApi # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /
+            Method: get

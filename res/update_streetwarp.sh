@@ -2,7 +2,7 @@
 
 set -e
 
-DIR=$(dirname $0)
+DIR=$(readlink -f "$(dirname "$0")")
 cd $DIR/bin
 
 rm -rf streetwarp

@@ -6,11 +6,11 @@ import asyncio
 from asyncio.subprocess import PIPE
 from asyncio import create_subprocess_exec
 import json, os, sys, subprocess
-from time import time
-from pprint import pprint
+from time import monotonic
 from functools import wraps
 from tempfile import mkdtemp
 from azure.storage.blob import BlobServiceClient
+from contextlib import contextmanager
 import websockets as ws
 
 
@@ -19,26 +19,47 @@ dirname = os.path.abspath(os.path.dirname(__file__))
 bin_path = r("res/bin")
 sw_path = r("res/bin/streetwarp")
 to_cdn = lambda url: url
-blob_service_client = BlobServiceClient.from_connection_string(
-    os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+blob_connection_env = "AZURE_STORAGE_CONNECTION_STRING"
+blob_service_client = (
+    BlobServiceClient.from_connection_string(os.getenv(blob_connection_env))
+    if blob_connection_env in os.environ
+    else None
 )
 
 
 # Define decorator that lets us @timer('msg') on functions
 def timer(msg):
-    def with_func(func):
-        @wraps(func)
-        def t(*args, **kwargs):
-            start = time()
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                print(f"{msg} failed with {str(e)}.", file=sys.stderr)
-                raise e
-            finally:
-                print(f"{msg}: {(time()-start)*1000:.3f}ms")
+    @contextmanager
+    def wrapper():
+        start = monotonic()
+        yield
+        print(f"{msg}: {(monotonic()-start)*1000:.3f}ms")
 
-        return t
+    def with_func(func):
+        if asyncio.iscoroutinefunction(func):
+
+            @wraps(func)
+            async def t_async(*args, **kwargs):
+                with wrapper():
+                    try:
+                        return await func(*args, **kwargs)
+                    except Exception as e:
+                        print(f"{msg} failed with {str(e)}.", file=sys.stderr)
+                        raise e
+
+            return t_async
+        else:
+
+            @wraps(func)
+            def t(*args, **kwargs):
+                with wrapper():
+                    try:
+                        return func(*args, **kwargs)
+                    except Exception as e:
+                        print(f"{msg} failed with {str(e)}.", file=sys.stderr)
+                        raise e
+
+            return t
 
     return with_func
 
@@ -59,13 +80,17 @@ async def _read_stream(stream, callback):
     while True:
         line = await stream.readline()
         if line:
-            callback(line)
+            callback(line.decode("utf-8").strip())
         else:
             break
 
 
 async def run(command, args, out_callback, err_callback):
-    process = await create_subprocess_exec(command, *args, stdout=PIPE, stderr=PIPE)
+    process = await create_subprocess_exec(
+        command, *args,
+        env={},
+        stdout=PIPE, stderr=PIPE, limit=1000 * 1000 * 10  # 10 MB
+    )
 
     await asyncio.wait(
         [
@@ -74,12 +99,12 @@ async def run(command, args, out_callback, err_callback):
         ]
     )
 
-    await process.wait()
+    return await process.wait()
 
 
 @timer("prepare output")
 def prepare_output(key):
-    out_dir = mkdtemp
+    out_dir = mkdtemp()
     out_name = os.path.join(out_dir, f"{key}.mp4")
     return (out_dir, out_name)
 
@@ -87,11 +112,10 @@ def prepare_output(key):
 async def main_async(event):
     key = event["key"]
     args = event["args"]
+    use_optimizer = event["useOptimizer"]
     extension = event["extension"]
     contents = event["contents"]
     callback_endpoint = event["callbackEndpoint"]
-    pprint(event)
-
     socket = None
     try:
         socket = await ws.connect(callback_endpoint)
@@ -102,6 +126,8 @@ async def main_async(event):
     in_file = prepare_input(key, contents, extension)
     out_dir, out_name = prepare_output(key)
     args += ["--output-dir", out_dir, "--output", out_name, in_file]
+    if use_optimizer:
+        args += ["--optimizer", os.path.join(sw_path, "path_optimizer", "main.py")]
 
     async def progress(msg):
         if socket is not None:
@@ -115,53 +141,50 @@ async def main_async(event):
     @timer("run streetwarp")
     async def streetwarp():
         stderr = []
-        result = None
+        result = []
 
         def on_out(line):
             try:
                 msg = json.loads(line)
-                if msg["type"] in ("PROGRESS", "PROGRESS_STAGE"):
+                if "type" in msg and msg["type"] in ("PROGRESS", "PROGRESS_STAGE"):
+                    print(f"streetwarp progress: {line}")
                     asyncio.get_event_loop().create_task(progress(line))
                 else:
-                    result = msg
+                    result.append(msg)
             except Exception as e:
                 print(f"Could not parse streetwarp output {line}", file=sys.stderr)
+                print(f"Error: {str(e)}", file=sys.stderr)
 
-        exit_code = await run(
-            "streetwarp", args, on_out, lambda err: stderr.append(err)
-        )
+        def on_err(line):
+            print(f"streetwarp err: {line}")
+            stderr.append(line)
+
+        exit_code = await run("streetwarp", args, on_out, on_err)
         if exit_code != 0:
             stderr = "\n".join(stderr)
             print(f'streetwarp failed (args=[{" ".join(args)}])', file=sys.stderr)
             print(f"stderr: {stderr}", file=sys.stderr)
             raise RuntimeError(f"streetwarp failed with exit code {exit_code}")
-        return result
+        return result[-1]
 
     try:
-        metadata = streetwarp(args)
+        metadata = await streetwarp()
         result = {"metadataResult": metadata}
-        if "--dry-run" not in args:
+        if "--dry-run" not in args and blob_service_client is not None:
             client = blob_service_client.get_container_client("output").get_blob_client(
                 f"{key}.mp4"
             )
             upload_vid(client)
             print(f"Upload location: {client.url}")
             result["videoResult"] = {"url": to_cdn(client.url)}
-        pprint(result)
         return {"statusCode": 200, "body": json.dumps(result)}
     except Exception as e:
-        return {"statusCode": 500, body: json.dumps({"error": str(e)})}
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
     finally:
         if socket is not None:
-            socket.close()
+            await socket.close()
 
 
 @timer("main function")
-def main(event):
+def main(event, _context):
     return asyncio.get_event_loop().run_until_complete(main_async(event))
-
-
-# expected result from test event:
-# {
-#  "statusCode": 200,
-#  "body": "{\"metadataResult\":{\"distance\":21561.385533487017,\"frames\":6,\"gpsPoints\":[{\"lat\":47.58910167467456,\"lng\":-122.2529698647992},{\"lat\":47.55999707850386,\"lng\":-122.2265548264297},{\"lat\":47.52927704962136,\"lng\":-122.2326196099177},{\"lat\":47.55173931336428,\"lng\":-122.2131310793535},{\"lat\":47.5779808,\"lng\":-122.2100971},{\"lat\":47.5893092,\"lng\":-122.2529977}],\"originalPoints\":[{\"lat\":47.58911,\"lng\":-122.25297},{\"lat\":47.58907,\"lng\":-122.25297},{\"lat\":47.58891,\"lng\":-122.25299},{\"lat\":47.58884,\"lng\":-122.25299},{\"lat\":47.58874,\"lng\":-

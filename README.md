@@ -5,12 +5,20 @@ This repo contains an AWS Lambda program which executes
 to an Azure storage blob. It's designed to be called by
 [streetwarp-web](https://github.com/pelmers/streetwarp-web).
 
-`res/bin` contains static builds of streetwarp and ffmpeg which can execute on
-AWS Lambda's Node v12 runtime.
+`res/bin` contains a static build of ffmpeg which can execute on
+AWS Lambda's Amazon Linux runtime.
 
-### Dev Setup
+### Testing Locally
+**Prereqs:**:
+ - [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
+ - `test/testoutput.json` created locally, following [event format](#event-format)
+
+**Steps:**
 1. `npm install -g serverless`
-2. `serverless plugin install -n serverless-python-requirements`
+2. `npm install`
+3. `poetry install`
+4. `./package_lambda.sh`
+5. `sam local invoke -e test/testoutput.json`
 
 ### Usage
 
@@ -40,7 +48,7 @@ yarn
 yarn run deploy
 ```
 
-### Testing
+### Event format
 
 Use the AWS Lambda Management Console to test this program by sending events
 with the following format:
