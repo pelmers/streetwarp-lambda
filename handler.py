@@ -18,7 +18,7 @@ r = lambda p: os.path.join(dirname, *p.split("/"))
 dirname = os.path.abspath(os.path.dirname(__file__))
 bin_path = r("res/bin")
 sw_path = r("res/bin/streetwarp")
-to_cdn = lambda url: url
+to_cdn = lambda url: url.replace('https://streetwarpstorage.blob.core.windows.net', 'https://streetwarpvideo.azureedge.net')
 blob_connection_env = "AZURE_STORAGE_CONNECTION_STRING"
 blob_service_client = (
     BlobServiceClient.from_connection_string(os.getenv(blob_connection_env))
@@ -135,7 +135,8 @@ async def main_async(event):
 
     async def progress(msg):
         if socket is not None:
-            await socket.send(msg)
+            wrapper = {'payload': msg, 'key': key}
+            await socket.send(json.dumps(wrapper))
 
     @timer("upload video")
     def upload_vid(client):
@@ -152,7 +153,7 @@ async def main_async(event):
                 msg = json.loads(line)
                 if "type" in msg and msg["type"] in ("PROGRESS", "PROGRESS_STAGE"):
                     print(f"streetwarp progress: {line}")
-                    asyncio.get_event_loop().create_task(progress(line))
+                    asyncio.get_event_loop().create_task(progress(msg))
                 else:
                     result.append(msg)
             except Exception as e:
