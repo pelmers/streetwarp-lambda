@@ -3,7 +3,7 @@
 This repo contains an AWS Lambda program which executes
 [streetwarp](https://github.com/pelmers/streetwarp-cli) and uploads its output
 to an Azure storage blob. It's designed to be called by
-[streetwarp-web](https://github.com/pelmers/streetwarp-web).
+[streetwarp-web](https://github.com/pelmers/streetwarp-web). See it in action at [streetwarp.ml](https://streetwarp.ml/).
 
 `res/bin` contains a static build of ffmpeg which can execute on
 AWS Lambda's Amazon Linux runtime.
@@ -12,6 +12,7 @@ AWS Lambda's Amazon Linux runtime.
 **Prereqs:**:
  - [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
  - `test/testoutput.json` created locally, following [event format](#event-format)
+ - [Docker](https://www.docker.com/), for build and deployment
 
 **Steps:**
 1. `npm install -g serverless`
@@ -22,30 +23,19 @@ AWS Lambda's Amazon Linux runtime.
 
 ### Usage
 
-To upload output to Azure, the program needs storage write credentials. Create
-a file `src/secret.ts` which exports an Azure storage credential object.
-It should also export 'toCDN' which turns a blob storage URL into a CDN-backed one.
-If you don't have CDN then just return the identity function.
-
-Example:
-
-```
-import { StorageSharedKeyCredential } from '@azure/storage-blob';
-
-const account = 'account name';
-const accountKey = 'account key';
-export const credential = new StorageSharedKeyCredential(account, accountKey);
-export const toCDN = (x) => x;
-```
+To upload output to Azure, the program needs storage write credentials. It expects
+to find this in the environment variable AZURE_STORAGE_CONNECTION_STRING.
 
 ### Publishing
 
 To publish changes to the Lambda program, use AWS CLI tooling. First create a
-zip, then upload to Lambda.
+zip, then upload to Lambda. The packaging script **expects
+[streetwarp](https://github.com/pelmers/streetwarp-cli) checked out in a sibling directory**.
 
 ```
 yarn
-yarn run deploy
+./package_lambda.sh
+./deploy_lambda.sh
 ```
 
 ### Event format
@@ -57,6 +47,7 @@ with the following format:
 {
   "key": "xyz1234",
   "callbackEndpoint": "https://streetwarp-web-location",
+  "useOptimizer": true,
   "args": [
     "--progress",
     "--api-key",
