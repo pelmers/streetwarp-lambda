@@ -12,13 +12,14 @@ from tempfile import mkdtemp
 from azure.storage.blob import BlobServiceClient
 from contextlib import contextmanager
 import websockets as ws
+import subprocess
+import aiohttp
 
 
 r = lambda p: os.path.join(dirname, *p.split("/"))
 dirname = os.path.abspath(os.path.dirname(__file__))
 bin_path = r("res/bin")
 sw_path = r("res/bin/streetwarp")
-to_cdn = lambda url: url.replace('https://streetwarpstorage.blob.core.windows.net', 'https://streetwarpvideo.azureedge.net')
 blob_connection_env = "AZURE_STORAGE_CONNECTION_STRING"
 blob_service_client = (
     BlobServiceClient.from_connection_string(os.getenv(blob_connection_env))
@@ -26,10 +27,10 @@ blob_service_client = (
     else None
 )
 ld_path = os.path.join(sw_path, "path_optimizer", "dist", "lib64")
-if 'LD_LIBRARY_PATH' in os.environ:
-    os.environ['LD_LIBRARY_PATH'] += os.path.pathsep + ld_path
+if "LD_LIBRARY_PATH" in os.environ:
+    os.environ["LD_LIBRARY_PATH"] += os.path.pathsep + ld_path
 else:
-    os.environ['LD_LIBRARY_PATH'] = ld_path
+    os.environ["LD_LIBRARY_PATH"] = ld_path
 
 
 # Define decorator that lets us @timer('msg') on functions
@@ -92,8 +93,7 @@ async def _read_stream(stream, callback):
 
 async def run(command, args, out_callback, err_callback):
     process = await create_subprocess_exec(
-        command, *args,
-        stdout=PIPE, stderr=PIPE, limit=1000 * 1000 * 10  # 10 MB
+        command, *args, stdout=PIPE, stderr=PIPE, limit=1000 * 1000 * 10  # 10 MB
     )
 
     await asyncio.wait(
@@ -113,29 +113,132 @@ def prepare_output(key):
     return (out_dir, out_name)
 
 
-async def main_async(event):
+@timer("connect to progress endpoint")
+async def connect_progress(endpoint):
+    socket = None
+    try:
+        socket = await ws.connect(endpoint)
+        print(f"Connected to server {endpoint}")
+    except Exception as e:
+        print(f"Could not connect websocket: {str(e)}")
+    return socket
+
+
+@timer("joining videos")
+async def join_videos(event):
+    callback_endpoint = event["callbackEndpoint"]
+    video_urls = event["videoUrls"]
     key = event["key"]
+    out_dir, out_name = prepare_output(key)
+    socket = await connect_progress(callback_endpoint)
+
+    async def progress(msg):
+        if socket is not None:
+            wrapper = {"payload": msg, "key": key}
+            await socket.send(json.dumps(wrapper))
+
+    def short_progress(msg):
+        asyncio.get_event_loop().create_task(
+            progress({"type": "PROGRESS_STAGE", "stage": msg})
+        )
+
+    @timer("downloading videos")
+    async def download_videos():
+        @timer("fetching file")
+        async def fetch(session, url):
+            async with session.get(url, timeout=60) as response:
+                res = await response.read()
+                name = os.path.join(out_dir, url.rsplit("/", 1)[-1])
+                with open(name, "wb") as f:
+                    f.write(res)
+                return name
+
+        async with aiohttp.ClientSession() as session:
+            return await asyncio.gather(
+                *[
+                    fetch(
+                        session,
+                        url,
+                    )
+                    for url in video_urls
+                ]
+            )
+
+    @timer("concat videos with ffmpeg")
+    def concat_videos(video_files):
+        # https://stackoverflow.com/questions/7333232/how-to-concatenate-two-mp4-files-using-ffmpeg
+        flist = os.path.join(out_dir, "file_list.txt")
+        with open(flist, "w") as f:
+            f.writelines([f"file '{v}'\n" for v in video_files])
+        subprocess.check_call(
+            [
+                r("res/bin/ffmpeg"),
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                flist,
+                "-c",
+                "copy",
+                out_name,
+            ]
+        )
+
+    @timer("upload result")
+    async def upload_vid(file):
+        if blob_service_client is not None:
+            name = f"{key}.mp4"
+            client = blob_service_client.get_container_client("output").get_blob_client(
+                f"{key}.mp4"
+            )
+            with open(out_name, "rb") as mp4:
+                client.upload_blob(mp4)
+            return client.url
+
+    try:
+        short_progress("Downloading video segments")
+        video_files = await download_videos()
+        short_progress("Joining video segments")
+        result_file = concat_videos(video_files)
+        result = {}
+        if blob_service_client is not None:
+            name = f"{key}.mp4"
+            client = blob_service_client.get_container_client("output").get_blob_client(
+                f"{key}.mp4"
+            )
+            url = await upload_vid(client)
+            print(f"Upload location: {url}")
+            result["videoResult"] = {"url": url}
+        return {"statusCode": 200, "body": json.dumps(result)}
+    except Exception as e:
+        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+    finally:
+        if socket is not None:
+            await socket.close()
+
+
+async def main_async(event):
+    if "joinVideos" in event and event["joinVideos"]:
+        return await join_videos(event)
+    key = event["key"]
+    index = None if "index" not in event else event["index"]
     args = event["args"]
     use_optimizer = event["useOptimizer"]
     extension = event["extension"]
     contents = event["contents"]
     callback_endpoint = event["callbackEndpoint"]
-    socket = None
-    try:
-        socket = await ws.connect(callback_endpoint)
-        print(f"Connected to server {callback_endpoint}")
-    except Exception as e:
-        print(f"Could not connect websocket: {str(e)}")
 
     in_file = prepare_input(key, contents, extension)
     out_dir, out_name = prepare_output(key)
     args += ["--output-dir", out_dir, "--output", out_name, in_file]
     if use_optimizer:
         args += ["--optimizer", os.path.join(sw_path, "path_optimizer", "main.py")]
+    socket = await connect_progress(callback_endpoint)
 
     async def progress(msg):
         if socket is not None:
-            wrapper = {'payload': msg, 'key': key}
+            wrapper = {"payload": msg, "key": key, "index": index}
             await socket.send(json.dumps(wrapper))
 
     @timer("upload video")
@@ -176,12 +279,13 @@ async def main_async(event):
         metadata = await streetwarp()
         result = {"metadataResult": metadata}
         if "--dry-run" not in args and blob_service_client is not None:
+            name = f"{key}.mp4" if index is None else f"{key}_{index}.mp4"
             client = blob_service_client.get_container_client("output").get_blob_client(
-                f"{key}.mp4"
+                name
             )
             upload_vid(client)
             print(f"Upload location: {client.url}")
-            result["videoResult"] = {"url": to_cdn(client.url)}
+            result["videoResult"] = {"url": client.url}
         return {"statusCode": 200, "body": json.dumps(result)}
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}

@@ -21,6 +21,9 @@ AWS Lambda's Amazon Linux runtime.
 4. `./package_lambda.sh`
 5. `sam local invoke -e test/testoutput.json`
 
+**Formatting:**
+`black handler.py`
+
 ### Usage
 
 To upload output to Azure, the program needs storage write credentials. It expects
