@@ -14,6 +14,8 @@ from contextlib import contextmanager
 import websockets as ws
 import subprocess
 import aiohttp
+import shutil
+import os
 
 
 r = lambda p: os.path.join(dirname, *p.split("/"))
@@ -151,6 +153,7 @@ async def join_videos(event):
                 name = os.path.join(out_dir, url.rsplit("/", 1)[-1])
                 with open(name, "wb") as f:
                     f.write(res)
+                print(f"{url} downloaded to {name}")
                 return name
 
         async with aiohttp.ClientSession() as session:
@@ -168,10 +171,17 @@ async def join_videos(event):
     def concat_videos(video_files):
         # https://stackoverflow.com/questions/7333232/how-to-concatenate-two-mp4-files-using-ffmpeg
         flist = os.path.join(out_dir, "file_list.txt")
-        with open(flist, "w") as f:
-            f.writelines([f"file '{v}'\n" for v in video_files])
-        subprocess.check_call(
-            [
+        # Because of limited disk space in /tmp on Lambda, we don't join all the videos together at once
+        # That would double the usage of the video files themselves.
+        # Instead we fold the videos into each other one at a time, deleting old ones as we go.
+        # This lets the storage overhead equal the size of one video (instead of the sum of all of them).
+        last_vid = video_files[0]
+        index = 1
+        for v in video_files[1:]:
+            with open(flist, "w") as f:
+                f.writelines([f"file '{v}'\n" for v in [last_vid, v]])
+            new_vid = os.path.join(out_dir, f"fold_{index}.mp4")
+            args = [
                 r("res/bin/ffmpeg"),
                 "-f",
                 "concat",
@@ -181,12 +191,18 @@ async def join_videos(event):
                 flist,
                 "-c",
                 "copy",
-                out_name,
+                new_vid,
             ]
-        )
+            print(f"args: {' '.join(args)}")
+            subprocess.check_call(args)
+            os.remove(last_vid)
+            os.remove(v)
+            last_vid = new_vid
+            index += 1
+        os.rename(last_vid, out_name)
 
     @timer("upload result")
-    async def upload_vid(file):
+    async def upload_vid():
         if blob_service_client is not None:
             name = f"{key}.mp4"
             client = blob_service_client.get_container_client("output").get_blob_client(
@@ -200,14 +216,10 @@ async def join_videos(event):
         short_progress("Downloading video segments")
         video_files = await download_videos()
         short_progress("Joining video segments")
-        result_file = concat_videos(video_files)
+        concat_videos(video_files)
         result = {}
         if blob_service_client is not None:
-            name = f"{key}.mp4"
-            client = blob_service_client.get_container_client("output").get_blob_client(
-                f"{key}.mp4"
-            )
-            url = await upload_vid(client)
+            url = await upload_vid()
             print(f"Upload location: {url}")
             result["videoResult"] = {"url": url}
         return {"statusCode": 200, "body": json.dumps(result)}
@@ -216,6 +228,7 @@ async def join_videos(event):
     finally:
         if socket is not None:
             await socket.close()
+        shutil.rmtree(out_dir)
 
 
 async def main_async(event):
@@ -292,6 +305,7 @@ async def main_async(event):
     finally:
         if socket is not None:
             await socket.close()
+        shutil.rmtree(out_dir)
 
 
 @timer("main function")
