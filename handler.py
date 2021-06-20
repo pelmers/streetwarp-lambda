@@ -16,6 +16,7 @@ import subprocess
 import aiohttp
 import shutil
 import os
+import uuid
 
 
 r = lambda p: os.path.join(dirname, *p.split("/"))
@@ -115,6 +116,15 @@ def prepare_output(key):
     return (out_dir, out_name)
 
 
+@timer("prepare output with EFS")
+def prepare_output_efs(key):
+    efs_id = str(uuid.uuid4())[:13]
+    out_dir = os.path.join("/mnt/efs/", efs_id)
+    os.mkdir(out_dir)
+    out_name = os.path.join(out_dir, f"{key}.mp4")
+    return (out_dir, out_name)
+
+
 @timer("connect to progress endpoint")
 async def connect_progress(endpoint):
     socket = None
@@ -131,7 +141,7 @@ async def join_videos(event):
     callback_endpoint = event["callbackEndpoint"]
     video_urls = event["videoUrls"]
     key = event["key"]
-    out_dir, out_name = prepare_output(key)
+    out_dir, out_name = prepare_output_efs(key)
     socket = await connect_progress(callback_endpoint)
 
     async def progress(msg):
@@ -171,10 +181,6 @@ async def join_videos(event):
     def concat_videos(video_files):
         # https://stackoverflow.com/questions/7333232/how-to-concatenate-two-mp4-files-using-ffmpeg
         flist = os.path.join(out_dir, "file_list.txt")
-        # Because of limited disk space in /tmp on Lambda, we don't join all the videos together at once
-        # That would double the usage of the video files themselves.
-        # Instead we fold the videos into each other one at a time, deleting old ones as we go.
-        # This lets the storage overhead equal the size of one video (instead of the sum of all of them).
         last_vid = video_files[0]
         index = 1
         for v in video_files[1:]:

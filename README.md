@@ -29,6 +29,22 @@ AWS Lambda's Amazon Linux runtime.
 To upload output to Azure, the program needs storage write credentials. It expects
 to find this in the environment variable AZURE_STORAGE_CONNECTION_STRING.
 
+
+### Details
+
+This lambda handler function has two operating modes:
+  1. creating a streetwarp video from input json or GPX data
+  2. joining multiple videos into a single larger one
+
+In its current operation on [streetwarp.ml](https://streetwarp.ml/), routes are
+chunked down to 600 points and a batch of calls to mode 1 of this handler are
+made. These videos are uploaded to Azure storage with the pattern
+`[key]_[index].mp4`.
+
+Once complete, a second call is made to join all these
+videos together. The handler enters this mode by checking the `joinVideos` key
+of the event data. In this case the video segments are downloaded to [Amazon EFS](https://aws.amazon.com/efs/), joined with `ffmpeg`, then uploaded to Azure and deleted from EFS. The programs assumes EFS is mounted at `/mnt/efs`.
+
 ### Publishing
 
 To publish changes to the Lambda program, use AWS CLI tooling. First create a
@@ -36,7 +52,7 @@ zip, then upload to Lambda. The packaging script **expects
 [streetwarp](https://github.com/pelmers/streetwarp-cli) checked out in a sibling directory**.
 
 ```
-yarn
+npm install
 ./package_lambda.sh
 ./deploy_lambda.sh
 ```
