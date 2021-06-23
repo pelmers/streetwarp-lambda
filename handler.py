@@ -298,7 +298,7 @@ async def main_async(event):
         metadata = await streetwarp()
         result = {"metadataResult": metadata}
         if "--dry-run" not in args and blob_service_client is not None:
-            name = f"{key}.mp4" if index is None else f"{key}_{index}.mp4"
+            name = f"{key}.mp4" if index is None else f"seg_{key}_{index}.mp4"
             client = blob_service_client.get_container_client("output").get_blob_client(
                 name
             )
