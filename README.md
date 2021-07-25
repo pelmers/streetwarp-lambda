@@ -3,7 +3,7 @@
 This repo contains an AWS Lambda program which executes
 [streetwarp](https://github.com/pelmers/streetwarp-cli) and uploads its output
 to an Azure storage blob. It's designed to be called by
-[streetwarp-web](https://github.com/pelmers/streetwarp-web). See it in action at [streetwarp.ml](https://streetwarp.ml/).
+[streetwarp-web](https://github.com/pelmers/streetwarp-web). See it in action at [streetwarp.com](https://streetwarp.com/).
 
 `res/bin` contains a static build of ffmpeg which can execute on
 AWS Lambda's Amazon Linux runtime.
@@ -36,7 +36,7 @@ This lambda handler function has two operating modes:
   1. creating a streetwarp video from input json or GPX data
   2. joining multiple videos into a single larger one
 
-In its current operation on [streetwarp.ml](https://streetwarp.ml/), routes are
+In its current operation on [streetwarp.com](https://streetwarp.com/), routes are
 chunked down to 600 points and a batch of calls to mode 1 of this handler are
 made. These videos are uploaded to Azure storage with the pattern
 `[key]_[index].mp4`.
