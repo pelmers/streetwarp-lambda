@@ -15,7 +15,7 @@ AWS Lambda's Amazon Linux runtime.
  - [Docker](https://www.docker.com/), for build and deployment
 
 **Steps:**
-1. `npm install -g serverless`
+1. `npm install -g serverless@2`
 2. `npm install`
 3. `poetry install`
 4. `./package_lambda.sh`
@@ -52,6 +52,7 @@ zip, then upload to Lambda. The packaging script **expects
 [streetwarp](https://github.com/pelmers/streetwarp-cli) checked out in a sibling directory**.
 
 ```
+npm install -g serverless@2
 npm install
 ./package_lambda.sh
 ./deploy_lambda.sh
