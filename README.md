@@ -26,8 +26,12 @@ AWS Lambda's Amazon Linux runtime.
 
 ### Usage
 
-To upload output to Azure, the program needs storage write credentials. It expects
-to find this in the environment variable AZURE_STORAGE_CONNECTION_STRING.
+To upload output to Azure, the program needs storage write credentials. The latest version
+supports different regions based on the event['uploadRegion'] parameter. Therefore connection strings
+are expected in the following variables:
+  - AZURE_STORAGE_CONNECTION_STRING_NA
+  - AZURE_STORAGE_CONNECTION_STRING_EU
+  - AZURE_STORAGE_CONNECTION_STRING_AS
 
 
 ### Details
@@ -79,6 +83,7 @@ with the following format:
     "--json"
   ],
   "extension": "gpx",
+  "uploadRegion": "na",
   "contents": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<gpx xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns=\"http://www.topografix.com/GPX/1/1\" xmlns:gpxdata=\"http://www.cluetrust.com/XML/GPXDATA/1/0\" xsi:schemaLocation=\"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd http://www.cluetrust.com/XML/GPXDATA/1/0 http://www.cluetrust.com/Schemas/gpxdata10.xsd\" version=\"1.1\" creator=\"http://ridewithgps.com/\"></gpx>\n"
 }
 ```

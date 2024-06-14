@@ -23,12 +23,12 @@ r = lambda p: os.path.join(dirname, *p.split("/"))
 dirname = os.path.abspath(os.path.dirname(__file__))
 bin_path = r("res/bin")
 sw_path = r("res/bin/streetwarp")
-blob_connection_env = "AZURE_STORAGE_CONNECTION_STRING"
-blob_service_client = (
-    BlobServiceClient.from_connection_string(os.getenv(blob_connection_env))
-    if blob_connection_env in os.environ
-    else None
-)
+blob_connection_envs = {
+    "na": "AZURE_STORAGE_CONNECTION_STRING_NA",
+    "eu": "AZURE_STORAGE_CONNECTION_STRING_EU",
+    "as": "AZURE_STORAGE_CONNECTION_STRING_AS",
+}
+blob_service_client = None
 ld_path = os.path.join(sw_path, "path_optimizer", "dist", "lib64")
 if "LD_LIBRARY_PATH" in os.environ:
     os.environ["LD_LIBRARY_PATH"] += os.path.pathsep + ld_path
@@ -142,9 +142,10 @@ async def join_videos(event):
     video_urls = event["videoUrls"]
     key = event["key"]
     out_dir, out_name = prepare_output_efs(key)
-    socket = await connect_progress(callback_endpoint)
+    socket_task = asyncio.create_task(connect_progress(callback_endpoint))
 
     async def progress(msg):
+        socket = await socket_task
         if socket is not None:
             wrapper = {"payload": msg, "key": key}
             await socket.send(json.dumps(wrapper))
@@ -232,14 +233,22 @@ async def join_videos(event):
     except Exception as e:
         return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
     finally:
+        socket = await socket_task
         if socket is not None:
             await socket.close()
         shutil.rmtree(out_dir)
 
 
 async def main_async(event):
+    region = event["uploadRegion"] if "uploadRegion" in event else "na"
+    global blob_service_client
+    if region in blob_connection_envs:
+        conn_str = os.environ[blob_connection_envs[region]]
+        blob_service_client = BlobServiceClient.from_connection_string(conn_str)
+
     if "joinVideos" in event and event["joinVideos"]:
         return await join_videos(event)
+
     key = event["key"]
     index = None if "index" not in event else event["index"]
     args = event["args"]
