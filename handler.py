@@ -240,7 +240,10 @@ async def join_videos(event):
 
 
 async def main_async(event):
-    print(f"Launching with event: {event}")
+    event_copy = event.copy()
+    if 'contents' in event_copy:
+        del event_copy['contents']
+    print(f"Launching with event: {event_copy}")
     region = event["uploadRegion"] if "uploadRegion" in event else "na"
     global blob_service_client
     if region in blob_connection_envs:
