@@ -240,11 +240,13 @@ async def join_videos(event):
 
 
 async def main_async(event):
+    print(f"Launching with event: {event}")
     region = event["uploadRegion"] if "uploadRegion" in event else "na"
     global blob_service_client
     if region in blob_connection_envs:
         conn_str = os.environ[blob_connection_envs[region]]
         blob_service_client = BlobServiceClient.from_connection_string(conn_str)
+        print(f"Connected to blob storage in {region}, url {blob_service_client.url}")
 
     if "joinVideos" in event and event["joinVideos"]:
         return await join_videos(event)
