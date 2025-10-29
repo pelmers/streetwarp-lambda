@@ -302,10 +302,16 @@ async def main_async(event):
 
         exit_code = await run("streetwarp", args, on_out, on_err)
         if exit_code != 0:
-            stderr = "\n".join(stderr)
+            stderr_text = "\n".join(stderr)
             print(f'streetwarp failed (args=[{" ".join(args)}])', file=sys.stderr)
-            print(f"stderr: {stderr}", file=sys.stderr)
-            raise RuntimeError(f"streetwarp failed with exit code {exit_code}")
+            print(f"stderr: {stderr_text}", file=sys.stderr)
+
+            # Include stderr in error message for better debugging
+            error_msg = f"streetwarp failed with exit code {exit_code}"
+            if stderr_text.strip():
+                error_msg += f"\nstderr output:\n{stderr_text}"
+
+            raise RuntimeError(error_msg)
         return result[-1]
 
     try:
