@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 DIR=$(readlink -f "$(dirname "$0")")
 cd $DIR

@@ -53,12 +53,12 @@ of the event data. In this case the video segments are downloaded to [Amazon EFS
 
 To publish changes to the Lambda program, use AWS CLI tooling. First create a
 zip, then upload to Lambda. The packaging script **expects
-[streetwarp](https://github.com/pelmers/streetwarp-cli) checked out in a sibling directory**.
+[streetwarp-cli](https://github.com/pelmers/streetwarp-cli) checked out in a sibling directory**.
 
+First create a `.env` file that exports your AWS CLI authentication variables, then:
 ```
 npm install -g serverless@2
 npm install
-./package_lambda.sh
 ./deploy_lambda.sh
 ```
 
